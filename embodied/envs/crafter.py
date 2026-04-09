@@ -8,7 +8,7 @@ import numpy as np
 
 class Crafter(embodied.Env):
 
-  def __init__(self, task, size=(64, 64), logs=False, logdir=None, seed=None):
+  def __init__(self, task, size=(64, 64), logs=False, logdir=None, seed=None, epsilon=0.0):
     assert task in ('reward', 'noreward')
     self._env = crafter.Env(size=size, reward=(task == 'reward'), seed=seed)
     self._logs = logs
@@ -19,6 +19,8 @@ class Crafter(embodied.Env):
     self._reward = None
     self._achievements = crafter.constants.achievements.copy()
     self._done = True
+    self._epsilon = float(epsilon)
+    self._prev_wood = 0
 
   @property
   def obs_space(self):
@@ -29,6 +31,10 @@ class Crafter(embodied.Env):
         'is_last': elements.Space(bool),
         'is_terminal': elements.Space(bool),
         'log/reward': elements.Space(np.float32),
+        'log/wood_collected': elements.Space(np.int32),
+        'log/health_level': elements.Space(np.int32),
+        'log/energy_level': elements.Space(np.int32),
+        'log/achievements_unlocked': elements.Space(np.int32),
     }
     if self._logs:
       spaces.update({
@@ -49,9 +55,16 @@ class Crafter(embodied.Env):
       self._length = 0
       self._reward = 0
       self._done = False
+      self._prev_wood = 0
       image = self._env.reset()
       return self._obs(image, 0.0, {}, is_first=True)
     image, reward, self._done, info = self._env.step(action['action'])
+    
+    current_wood = info['inventory']['wood'] if info and 'inventory' in info else 0
+    if current_wood > self._prev_wood:
+      reward += self._epsilon
+    self._prev_wood = current_wood
+    
     self._reward += reward
     self._length += 1
     if self._done and self._logdir:
@@ -71,6 +84,10 @@ class Crafter(embodied.Env):
         is_last=is_last,
         is_terminal=is_terminal,
         **{'log/reward': np.float32(info['reward'] if info else 0.0)},
+        **{'log/wood_collected': np.int32(info['inventory']['wood'] if info and 'inventory' in info else 0)},
+        **{'log/health_level': np.int32(info['inventory']['health'] if info and 'inventory' in info else 0)},
+        **{'log/energy_level': np.int32(info['inventory']['energy'] if info and 'inventory' in info else 0)},
+        **{'log/achievements_unlocked': np.int32(sum(info['achievements'].values()) if info and 'achievements' in info else 0)},
     )
     if self._logs:
       log_achievements = {

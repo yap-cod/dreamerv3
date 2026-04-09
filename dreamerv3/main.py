@@ -242,6 +242,8 @@ def make_env(config, index, **overrides):
     kwargs['seed'] = hash((config.seed, index)) % (2 ** 32 - 1)
   if kwargs.pop('use_logdir', False):
     kwargs['logdir'] = elements.Path(config.logdir) / f'env{index}'
+  if suite == 'crafter':
+    kwargs['epsilon'] = getattr(config, 'epsilon', 0.0)
   env = ctor(task, **kwargs)
   return wrap_env(env, config)
 

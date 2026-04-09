@@ -1,5 +1,6 @@
 defaults:
 
+  epsilon: 0.0
   logdir: ~/logdir/{timestamp}
   replica: 0
   replicas: 1
