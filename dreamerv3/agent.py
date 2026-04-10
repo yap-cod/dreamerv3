@@ -409,8 +409,18 @@ def imag_loss(
       jnp.repeat(term[..., None], rew.shape[-1], axis=-1),
       rew, tarval, tarval, disc, lam)
 
+  # Anticipatory Homeostasis: Dynamic Satiety Weights
+  # Normalize expected returns safely for Softmax stability
+  eps = 1e-8
+  tar_mean = tarval.mean(axis=-1, keepdims=True)
+  tar_std = tarval.std(axis=-1, keepdims=True)
+  tar_normed = (tarval - tar_mean) / (tar_std + eps)
+  
+  # Temperature-Inverted Attention (panic threshold)
+  beta = 1.0
+  omega = jax.nn.softmax(-beta * tar_normed, axis=-1)
+  
   # MO-Dreamer Cobb-Douglas Scalarization
-  omega = jnp.array([1/3, 1/3, 1/3], dtype=f32)
   pos_ret = jax.nn.softplus(ret)
   pos_tar = jax.nn.softplus(tarval[:, :-1])
   
