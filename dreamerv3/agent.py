@@ -479,7 +479,7 @@ def repl_loss(
   ret = lambda_return(
       jnp.repeat(last[..., None], rew.shape[-1], axis=-1),
       jnp.repeat(term[..., None], rew.shape[-1], axis=-1),
-      rew, tarval, jnp.repeat(boot[..., None], rew.shape[-1], axis=-1), disc, lam)
+      rew, tarval, boot, disc, lam)
 
   voffset, vscale = valnorm(ret, update)
   ret_normed = (ret - jnp.expand_dims(voffset, 0)) / jnp.expand_dims(vscale, 0)
