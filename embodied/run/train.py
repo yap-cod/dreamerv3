@@ -31,7 +31,12 @@ def train(make_agent, make_replay, make_env, make_stream, make_logger, args):
   def logfn(tran, worker):
     episode = episodes[worker]
     tran['is_first'] and episode.reset()
-    episode.add('score', tran['reward'], agg='sum')
+    if np.ndim(tran['reward']) > 0:
+      episode.add('score', tran['reward'][0], agg='sum')
+      episode.add('score_health', tran['reward'][1], agg='sum')
+      episode.add('score_achieve', tran['reward'][2], agg='sum')
+    else:
+      episode.add('score', tran['reward'], agg='sum')
     episode.add('length', 1, agg='sum')
     episode.add('rewards', tran['reward'], agg='stack')
     for key, value in tran.items():
@@ -45,10 +50,14 @@ def train(make_agent, make_replay, make_env, make_stream, make_logger, args):
         episode.add(key + '/sum', value, agg='sum')
     if tran['is_last']:
       result = episode.result()
-      logger.add({
+      log_dict = {
           'score': result.pop('score'),
           'length': result.pop('length'),
-      }, prefix='episode')
+      }
+      if 'score_health' in result:
+        log_dict['score_health'] = result.pop('score_health')
+        log_dict['score_achieve'] = result.pop('score_achieve')
+      logger.add(log_dict, prefix='episode')
       rew = result.pop('rewards')
       if len(rew) > 1:
         result['reward_rate'] = (np.abs(rew[1:] - rew[:-1]) >= 0.01).mean()
