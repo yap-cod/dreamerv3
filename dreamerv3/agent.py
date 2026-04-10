@@ -219,7 +219,7 @@ class Agent(embodied.jax.Agent):
     if self.config.repval_loss:
       feat = sg(repfeat, skip=self.config.repval_grad)
       last, term, rew = [obs[k] for k in ('is_last', 'is_terminal', 'reward')]
-      boot = imgloss_out['ret'][:, 0].reshape(B, K)
+      boot = imgloss_out['ret'][:, 0].reshape((B, K, -1))
       feat, last, term, rew, boot = jax.tree.map(
           lambda x: x[:, -K:], (feat, last, term, rew, boot))
       inp = self.feat2tensor(feat)
