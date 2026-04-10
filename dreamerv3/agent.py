@@ -219,7 +219,7 @@ class Agent(embodied.jax.Agent):
     if self.config.repval_loss:
       feat = sg(repfeat, skip=self.config.repval_grad)
       last, term, rew = [obs[k] for k in ('is_last', 'is_terminal', 'reward')]
-      boot = imgloss_out['ret'][:, 0].reshape(B, K)
+      boot = imgloss_out['ret'][:, 0].reshape((B, K, -1))
       feat, last, term, rew, boot = jax.tree.map(
           lambda x: x[:, -K:], (feat, last, term, rew, boot))
       inp = self.feat2tensor(feat)
@@ -428,7 +428,7 @@ def imag_loss(
   losses['policy'] = policy_loss
 
   voffset, vscale = valnorm(ret, update)
-  tar_normed = (ret - voffset) / vscale
+  tar_normed = (ret - jnp.expand_dims(voffset, 0)) / jnp.expand_dims(vscale, 0)
   tar_padded = jnp.concatenate([tar_normed, 0 * tar_normed[:, -1:]], 1)
   losses['value'] = sg(weight[:, :-1]) * (
       value.loss(sg(tar_padded)) +
@@ -479,7 +479,7 @@ def repl_loss(
   ret = lambda_return(
       jnp.repeat(last[..., None], rew.shape[-1], axis=-1),
       jnp.repeat(term[..., None], rew.shape[-1], axis=-1),
-      rew, tarval, boot, disc, lam)
+      rew, tarval, jnp.repeat(boot[..., None], rew.shape[-1], axis=-1), disc, lam)
 
   voffset, vscale = valnorm(ret, update)
   ret_normed = (ret - jnp.expand_dims(voffset, 0)) / jnp.expand_dims(vscale, 0)
