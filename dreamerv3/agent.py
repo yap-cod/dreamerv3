@@ -52,9 +52,9 @@ class Agent(embodied.jax.Agent):
         nn.cast(x['deter']),
         nn.cast(x['stoch'].reshape((*x['stoch'].shape[:-2], -1)))], -1)
 
-    scalar = elements.Space(np.float32, ())
+    reward_space = self.obs_space['reward']
     binary = elements.Space(bool, (), 0, 2)
-    self.rew = embodied.jax.MLPHead(scalar, **config.rewhead, name='rew')
+    self.rew = embodied.jax.MLPHead(reward_space, **config.rewhead, name='rew')
     self.con = embodied.jax.MLPHead(binary, **config.conhead, name='con')
 
     d1, d2 = config.policy_dist_disc, config.policy_dist_cont
@@ -62,9 +62,9 @@ class Agent(embodied.jax.Agent):
     self.pol = embodied.jax.MLPHead(
         act_space, outs, **config.policy, name='pol')
 
-    self.val = embodied.jax.MLPHead(scalar, **config.value, name='val')
+    self.val = embodied.jax.MLPHead(reward_space, **config.value, name='val')
     self.slowval = embodied.jax.SlowModel(
-        embodied.jax.MLPHead(scalar, **config.value, name='slowval'),
+        embodied.jax.MLPHead(reward_space, **config.value, name='slowval'),
         source=self.val, **config.slowvalue)
 
     self.retnorm = embodied.jax.Normalize(**config.retnorm, name='retnorm')
@@ -402,10 +402,23 @@ def imag_loss(
   weight = jnp.cumprod(disc * con, 1) / disc
   last = jnp.zeros_like(con)
   term = 1 - con
-  ret = lambda_return(last, term, rew, tarval, tarval, disc, lam)
+  
+  # Broadcast last and term to reward space dimensions
+  ret = lambda_return(
+      jnp.repeat(last[..., None], rew.shape[-1], axis=-1),
+      jnp.repeat(term[..., None], rew.shape[-1], axis=-1),
+      rew, tarval, tarval, disc, lam)
 
-  roffset, rscale = retnorm(ret, update)
-  adv = (ret - tarval[:, :-1]) / rscale
+  # MO-Dreamer Cobb-Douglas Scalarization
+  omega = jnp.array([1/3, 1/3, 1/3], dtype=f32)
+  pos_ret = jax.nn.softplus(ret)
+  pos_tar = jax.nn.softplus(tarval[:, :-1])
+  
+  scalar_ret = jnp.exp(jnp.sum(omega * jnp.log(pos_ret), axis=-1))
+  scalar_tar = jnp.exp(jnp.sum(omega * jnp.log(pos_tar), axis=-1))
+
+  roffset, rscale = retnorm(scalar_ret, update)
+  adv = (scalar_ret - scalar_tar) / rscale
   aoffset, ascale = advnorm(adv, update)
   adv_normed = (adv - aoffset) / ascale
   logpi = sum([v.logp(sg(act[k]))[:, :-1] for k, v in policy.items()])
@@ -421,7 +434,7 @@ def imag_loss(
       value.loss(sg(tar_padded)) +
       slowreg * value.loss(sg(slowvalue.pred())))[:, :-1]
 
-  ret_normed = (ret - roffset) / rscale
+  ret_normed = (ret - jnp.expand_dims(voffset, 0)) / jnp.expand_dims(vscale, 0)
   metrics['adv'] = adv.mean()
   metrics['adv_std'] = adv.std()
   metrics['adv_mag'] = jnp.abs(adv).mean()
@@ -463,10 +476,13 @@ def repl_loss(
   tarval = slowval if slowtar else val
   disc = 1 - 1 / horizon
   weight = f32(~last)
-  ret = lambda_return(last, term, rew, tarval, boot, disc, lam)
+  ret = lambda_return(
+      jnp.repeat(last[..., None], rew.shape[-1], axis=-1),
+      jnp.repeat(term[..., None], rew.shape[-1], axis=-1),
+      rew, tarval, boot, disc, lam)
 
   voffset, vscale = valnorm(ret, update)
-  ret_normed = (ret - voffset) / vscale
+  ret_normed = (ret - jnp.expand_dims(voffset, 0)) / jnp.expand_dims(vscale, 0)
   ret_padded = jnp.concatenate([ret_normed, 0 * ret_normed[:, -1:]], 1)
   losses['repval'] = weight[:, :-1] * (
       value.loss(sg(ret_padded)) +

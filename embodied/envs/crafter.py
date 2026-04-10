@@ -21,12 +21,14 @@ class Crafter(embodied.Env):
     self._done = True
     self._epsilon = float(epsilon)
     self._prev_wood = 0
+    self._prev_hp = 9  # Crafter max health
+    self._prev_ach = 0
 
   @property
   def obs_space(self):
     spaces = {
         'image': elements.Space(np.uint8, self._env.observation_space.shape),
-        'reward': elements.Space(np.float32),
+        'reward': elements.Space(np.float32, (3,)),
         'is_first': elements.Space(bool),
         'is_last': elements.Space(bool),
         'is_terminal': elements.Space(bool),
@@ -56,8 +58,11 @@ class Crafter(embodied.Env):
       self._reward = 0
       self._done = False
       self._prev_wood = 0
+      self._prev_hp = 9
+      self._prev_ach = 0
       image = self._env.reset()
-      return self._obs(image, 0.0, {}, is_first=True)
+      vec_reward = np.zeros(3, dtype=np.float32)
+      return self._obs(image, vec_reward, {}, is_first=True)
     image, reward, self._done, info = self._env.step(action['action'])
     
     current_wood = info['inventory']['wood'] if info and 'inventory' in info else 0
@@ -65,12 +70,22 @@ class Crafter(embodied.Env):
       reward += self._epsilon
     self._prev_wood = current_wood
     
+    current_hp = info['inventory']['health'] if info and 'inventory' in info else 9
+    hp_delta = current_hp - self._prev_hp
+    self._prev_hp = current_hp
+    
+    current_ach = sum(info['achievements'].values()) if info and 'achievements' in info else 0
+    ach_delta = current_ach - self._prev_ach
+    self._prev_ach = current_ach
+    
+    vec_reward = np.array([float(reward), float(hp_delta), float(ach_delta)], dtype=np.float32)
+    
     self._reward += reward
     self._length += 1
     if self._done and self._logdir:
       self._write_stats(self._length, self._reward, info)
     return self._obs(
-        image, reward, info,
+        image, vec_reward, info,
         is_last=self._done,
         is_terminal=info['discount'] == 0)
 
@@ -79,7 +94,7 @@ class Crafter(embodied.Env):
       is_first=False, is_last=False, is_terminal=False):
     obs = dict(
         image=image,
-        reward=np.float32(reward),
+        reward=np.asarray(reward, dtype=np.float32),
         is_first=is_first,
         is_last=is_last,
         is_terminal=is_terminal,
