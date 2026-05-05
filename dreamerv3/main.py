@@ -244,6 +244,7 @@ def make_env(config, index, **overrides):
     kwargs['logdir'] = elements.Path(config.logdir) / f'env{index}'
   if suite == 'crafter':
     kwargs['epsilon'] = getattr(config, 'epsilon', 0.0)
+    kwargs['oracle_alpha'] = getattr(config, 'oracle_alpha', 0.0)
   env = ctor(task, **kwargs)
   return wrap_env(env, config)
 

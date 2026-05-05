@@ -8,7 +8,7 @@ import numpy as np
 
 class Crafter(embodied.Env):
 
-  def __init__(self, task, size=(64, 64), logs=False, logdir=None, seed=None, epsilon=0.0):
+  def __init__(self, task, size=(64, 64), logs=False, logdir=None, seed=None, epsilon=0.0, oracle_alpha=0.0):
     assert task in ('reward', 'noreward')
     self._env = crafter.Env(size=size, reward=(task == 'reward'), seed=seed)
     self._logs = logs
@@ -20,15 +20,21 @@ class Crafter(embodied.Env):
     self._achievements = crafter.constants.achievements.copy()
     self._done = True
     self._epsilon = float(epsilon)
+    self._oracle_alpha = float(oracle_alpha)  # preference feedback weight (0 = disabled)
     self._prev_wood = 0
     self._prev_hp = 9  # Crafter max health
     self._prev_ach = 0
 
   @property
   def obs_space(self):
+    reward_space = (
+        elements.Space(np.float32)        # scalar — oracle / Phase 1 mode
+        if self._oracle_alpha > 0.0 else
+        elements.Space(np.float32, (3,))  # vector — MO-Dreamer mode
+    )
     spaces = {
         'image': elements.Space(np.uint8, self._env.observation_space.shape),
-        'reward': elements.Space(np.float32, (3,)),
+        'reward': reward_space,
         'is_first': elements.Space(bool),
         'is_last': elements.Space(bool),
         'is_terminal': elements.Space(bool),
@@ -77,15 +83,23 @@ class Crafter(embodied.Env):
     current_ach = sum(info['achievements'].values()) if info and 'achievements' in info else 0
     ach_delta = current_ach - self._prev_ach
     self._prev_ach = current_ach
-    
-    vec_reward = np.array([float(reward), float(hp_delta), float(ach_delta)], dtype=np.float32)
+
+    if self._oracle_alpha > 0.0:
+      # Preference feedback baseline: scalar reward corrected by achievement delta.
+      # Architecture-agnostic — uses standard DreamerV3 (no vector critic).
+      # r_tilde = r_epsilon + alpha * r_pref,  where r_pref = ach_delta
+      scalar_reward = float(reward) + self._oracle_alpha * float(ach_delta)
+      out_reward = np.float32(scalar_reward)
+    else:
+      # MO-Dreamer: 3D vector reward [hacked_reward, hp_delta, ach_delta]
+      out_reward = np.array([float(reward), float(hp_delta), float(ach_delta)], dtype=np.float32)
     
     self._reward += reward
     self._length += 1
     if self._done and self._logdir:
       self._write_stats(self._length, self._reward, info)
     return self._obs(
-        image, vec_reward, info,
+        image, out_reward, info,
         is_last=self._done,
         is_terminal=info['discount'] == 0)
 

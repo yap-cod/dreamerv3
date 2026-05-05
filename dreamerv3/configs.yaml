@@ -1,6 +1,7 @@
 defaults:
 
   epsilon: 0.0
+  oracle_alpha: 0.0  # preference feedback correction weight (0 = disabled)
   logdir: ~/logdir/{timestamp}
   replica: 0
   replicas: 1
