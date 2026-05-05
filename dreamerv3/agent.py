@@ -403,19 +403,25 @@ def imag_loss(
   last = jnp.zeros_like(con)
   term = 1 - con
   
-  # Broadcast last and term to reward space dimensions
-  ret = lambda_return(
-      jnp.repeat(last[..., None], rew.shape[-1], axis=-1),
-      jnp.repeat(term[..., None], rew.shape[-1], axis=-1),
-      rew, tarval, tarval, disc, lam)
+  # Handle both scalar rewards (oracle baseline) and vector rewards (MO-Dreamer).
+  if rew.ndim == 3:
+    last_in = jnp.repeat(last[..., None], rew.shape[-1], axis=-1)
+    term_in = jnp.repeat(term[..., None], rew.shape[-1], axis=-1)
+  else:
+    last_in, term_in = last, term
+  ret = lambda_return(last_in, term_in, rew, tarval, tarval, disc, lam)
 
-  # MO-Dreamer Cobb-Douglas Scalarization
-  omega = jnp.array([1/3, 1/3, 1/3], dtype=f32)
-  pos_ret = jax.nn.softplus(ret)
-  pos_tar = jax.nn.softplus(tarval[:, :-1])
-  
-  scalar_ret = jnp.exp(jnp.sum(omega * jnp.log(pos_ret), axis=-1))
-  scalar_tar = jnp.exp(jnp.sum(omega * jnp.log(pos_tar), axis=-1))
+  if ret.ndim == 3:
+    # MO-Dreamer Cobb-Douglas scalarization of vector returns.
+    omega = jnp.full((ret.shape[-1],), 1.0 / ret.shape[-1], dtype=f32)
+    pos_ret = jax.nn.softplus(ret)
+    pos_tar = jax.nn.softplus(tarval[:, :-1])
+    scalar_ret = jnp.exp(jnp.sum(omega * jnp.log(pos_ret), axis=-1))
+    scalar_tar = jnp.exp(jnp.sum(omega * jnp.log(pos_tar), axis=-1))
+  else:
+    # Scalar reward path (e.g., oracle_alpha baseline).
+    scalar_ret = ret
+    scalar_tar = tarval[:, :-1]
 
   roffset, rscale = retnorm(scalar_ret, update)
   adv = (scalar_ret - scalar_tar) / rscale
@@ -476,10 +482,12 @@ def repl_loss(
   tarval = slowval if slowtar else val
   disc = 1 - 1 / horizon
   weight = f32(~last)
-  ret = lambda_return(
-      jnp.repeat(last[..., None], rew.shape[-1], axis=-1),
-      jnp.repeat(term[..., None], rew.shape[-1], axis=-1),
-      rew, tarval, boot, disc, lam)
+  if rew.ndim == 3:
+    last_in = jnp.repeat(last[..., None], rew.shape[-1], axis=-1)
+    term_in = jnp.repeat(term[..., None], rew.shape[-1], axis=-1)
+  else:
+    last_in, term_in = last, term
+  ret = lambda_return(last_in, term_in, rew, tarval, boot, disc, lam)
 
   voffset, vscale = valnorm(ret, update)
   ret_normed = (ret - jnp.expand_dims(voffset, 0)) / jnp.expand_dims(vscale, 0)
