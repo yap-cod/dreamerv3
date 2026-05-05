@@ -67,8 +67,11 @@ class Crafter(embodied.Env):
       self._prev_hp = 9
       self._prev_ach = 0
       image = self._env.reset()
-      vec_reward = np.zeros(3, dtype=np.float32)
-      return self._obs(image, vec_reward, {}, is_first=True)
+      if self._oracle_alpha > 0.0:
+        out_reward = np.float32(0.0)
+      else:
+        out_reward = np.zeros(3, dtype=np.float32)
+      return self._obs(image, out_reward, {}, is_first=True)
     image, reward, self._done, info = self._env.step(action['action'])
     
     current_wood = info['inventory']['wood'] if info and 'inventory' in info else 0
