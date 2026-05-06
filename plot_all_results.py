@@ -17,6 +17,7 @@ RUNS = {
     "Phase 3 Dynamic - e=3":  ("results/scores_dynamic_epsilon3.jsonl",   "results/metrics_dynamic_epsilon3.jsonl"),
     "Phase 3 Dynamic - e=5":  ("results/scores_dynamic_epsilon5.jsonl",   "results/metrics_dynamic_epsilon5.jsonl"),
     "Oracle Scalar - e=5 a=0.3": ("results/scores_oracle0.3_epsilon5.jsonl", "results/metrics_oracle0.3_epsilon5.jsonl"),
+    "Oracle Scalar - e=1 a=0.3": ("results/scores_oracle0.3_epsilon1.jsonl", "results/metrics_oracle0.3_epsilon1.jsonl"),
 }
 
 EXTRA_SCORE_FILES = {
@@ -85,11 +86,18 @@ P3D_STYLE = {
     "Phase 3 Dynamic - e=3":  ("#3A86FF", "-",  1.8),
     "Phase 3 Dynamic - e=5":  ("#D62839", "-",  1.8),
 }
-ORACLE_STYLE = {
+ORACLE_EPS5_STYLE = {
     "Phase 1 - e=5":            ("#D62839", "-",  2.0),
     "Phase 3 Static - e=5":     ("#FF8C42", "-",  2.0),
     "Phase 3 Dynamic - e=5":    ("#3A86FF", "-",  2.0),
     "Oracle Scalar - e=5 a=0.3": ("#8338EC", "-", 2.2),
+}
+
+ORACLE_EPS1_STYLE = {
+    "Baseline (e=0)":            ("#333333", "--", 2.5),
+    "Phase 1 - e=1":             ("#4DA6FF", "-",  1.8),
+    "Phase 3 Static - e=1":      ("#2EC4B6", "-",  1.8),
+    "Oracle Scalar - e=1 a=0.3": ("#8338EC", "-", 2.2),
 }
 
 
@@ -187,9 +195,13 @@ make_figure(P3D_STYLE,
     "Phase 3B: Dynamic Homeostatic MO-Dreamer  -  vs Baseline",
     "fig_phase3_dynamic.png")
 
-make_figure(ORACLE_STYLE,
+make_figure(ORACLE_EPS5_STYLE,
     "Phase 3C: Oracle Scalar Baseline (epsilon=5, alpha=0.3)",
     "fig_phase3_oracle.png")
+
+make_figure(ORACLE_EPS1_STYLE,
+    "Oracle Scalar Baseline (epsilon=1, alpha=0.3) vs Scalar / Static MO",
+    "fig_oracle_epsilon1.png")
 
 print("\nGenerating un-inflated reward figures...")
 make_true_reward_figure(PHASE1_STYLE,
@@ -204,8 +216,12 @@ make_true_reward_figure(P3D_STYLE,
     "Phase 3B (Comparable): Un-inflated Env Reward vs Baseline",
     "fig_phase3_dynamic_true_reward.png")
 
-make_true_reward_figure(ORACLE_STYLE,
+make_true_reward_figure(ORACLE_EPS5_STYLE,
     "Phase 3C (Comparable): Oracle vs e=5 Runs (Un-inflated Reward)",
     "fig_phase3_oracle_true_reward.png")
+
+make_true_reward_figure(ORACLE_EPS1_STYLE,
+    "Oracle e=1 (Comparable): Un-inflated Env Reward vs Baseline / Phase 1 / Static MO",
+    "fig_oracle_epsilon1_true_reward.png")
 
 print("All done.")

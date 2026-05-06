@@ -24,7 +24,7 @@ Controlled Misspecification, Multi-Objective Mitigation, and an Oracle Baseline}
 \maketitle
 
 \begin{abstract}
-We study controlled reward misspecification in DreamerV3 on Crafter by injecting a wood-targeted perturbation $\epsilon \in \{0,1,3,5\}$ into the reward stream used for policy learning through imagined trajectories. We compare three mitigation families: (i) scalar DreamerV3, (ii) Static and Dynamic Multi-Objective (MO) Dreamer variants, and (iii) a scalar preference-corrected baseline using an oracle-weighted achievement increment term ($\texttt{oracle\_alpha}$). Across completed runs, we observe consistent proxy-focused behavior under high $\epsilon$, partial robustness from static MO, stronger robustness from dynamic MO, and a competitive but still scalar oracle baseline at $\epsilon=5$ and $\alpha=0.3$ over \(\sim\)0.8M steps. The results support a magnitude-threshold view: mitigation helps substantially, but strong misspecification remains challenging.
+We study controlled reward misspecification in DreamerV3 on Crafter by injecting a wood-targeted perturbation $\epsilon \in \{0,1,3,5\}$ into the reward stream used for policy learning through imagined trajectories. We compare three mitigation families: (i) scalar DreamerV3, (ii) Static and Dynamic Multi-Objective (MO) Dreamer variants, and (iii) a scalar preference-corrected baseline using an oracle-weighted achievement increment ($\texttt{oracle\_alpha}=0.3$) at both moderate ($\epsilon=1$) and strong ($\epsilon=5$) perturbations. We report both hacked training scores and \textit{un-inflated} environment reward from Crafter logs for fair comparison across methods. Scalar agents show proxy-focused drift at higher $\epsilon$; static and dynamic MO mitigate partially with a clear magnitude threshold; oracle shaping improves scalar training without architectural changes. Strong $\epsilon$ remains the hardest regime.
 \end{abstract}
 
 \section{Problem Setup}
@@ -54,7 +54,7 @@ To avoid architecture changes, we add a preference-correction term in scalar mod
 \begin{equation}
 \tilde{r}_t = r_t^\epsilon + \alpha \cdot \Delta\text{achievement}_t
 \end{equation}
-with $\alpha=0.3$ in the current completed run.
+with $\alpha=0.3$. We completed runs at $\epsilon\in\{1,5\}$ and compare against Phase~1 scalar and (for $\epsilon=1$) Static MO at the same perturbation level.
 
 \section{Results}
 \subsection{Scalar Misspecification Signature}
@@ -84,7 +84,24 @@ Phase 1 shows clear proxy-focused behavior at higher $\epsilon$ with unstable sc
 
 Static MO mitigates low/moderate misspecification but weakens at $\epsilon=5$. Dynamic MO improves robustness further and delays degradation in high-$\epsilon$ settings.
 
-\subsection{Oracle Baseline vs Existing Methods}
+\subsection{Oracle baseline at $\epsilon=1$}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\columnwidth]{fig_oracle_epsilon1.png}
+  \caption{Oracle scalar baseline ($\epsilon=1$, $\alpha=0.3$) vs.\ clean baseline, Phase~1 scalar at $\epsilon=1$, and Static MO at $\epsilon=1$. Left: episode score (training signal includes hack where applicable). Right: average health.}
+  \label{fig:oracle_eps1}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\columnwidth]{fig_oracle_epsilon1_true_reward.png}
+  \caption{Same comparison using \textit{un-inflated} env reward (\texttt{log/reward/sum}) for comparable outcomes across methods.}
+  \label{fig:oracle_eps1_true}
+\end{figure}
+
+The $\epsilon=1$ oracle run spans \(\sim\)1.1M environment steps (5{,}977 episode-score samples). Near the end of training, logged aggregates include episode score \(\approx 40.6\), health average \(\approx 7.93\), and achievements-unlocked average \(\approx 53.4\). Visually, oracle shaping tracks close to strong baselines at moderate $\epsilon$, supporting preference correction as a lightweight alternative when architecture changes are undesirable.
+
+\subsection{Oracle baseline at $\epsilon=5$}
 \begin{figure}[H]
   \centering
   \includegraphics[width=\columnwidth]{fig_phase3_oracle.png}
@@ -92,15 +109,22 @@ Static MO mitigates low/moderate misspecification but weakens at $\epsilon=5$. D
   \label{fig:phase3c_final}
 \end{figure}
 
-The oracle scalar run reached step 797,325 with 4,301 episode-score points and 4,420 metric rows. Final logged values include episode score \(\approx 59.2\), health average \(\approx 7.96\), and achievements-unlocked average \(\approx 59.05\). This confirms the preference-correction baseline is operational and competitive, though still a scalar objective and not a full architectural isolation mechanism.
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\columnwidth]{fig_phase3_oracle_true_reward.png}
+  \caption{$\epsilon=5$ comparison using un-inflated env reward (\texttt{log/reward/sum}).}
+  \label{fig:phase3c_true}
+\end{figure}
+
+For $\epsilon=5$, oracle training curves extend through merged score logs to \(\sim 1.1\times 10^6\) steps for plotting; metric-derived health/reward panels follow the primary \texttt{metrics} JSONL coverage. Oracle remains competitive with MO variants on several slices but is still a single scalar objective---it does not enforce the same structural separation as Cobb--Douglas MO.
 
 \section{Discussion}
-\textbf{What is established.} Controlled misspecification reliably changes behavior; mitigation helps, with dynamic MO strongest among completed architecture variants.\\
-\textbf{What is newly added.} A working preference-corrected scalar baseline (oracle path) and direct visual comparison against prior $\epsilon=5$ runs.\\
-\textbf{Current limitation.} Oracle evidence currently reflects one completed $\alpha=0.3$ run to \(\sim\)0.8M steps, not yet a full seed sweep.
+\textbf{What is established.} Controlled misspecification reliably changes behavior; mitigation helps, with dynamic MO strongest among completed architecture variants at high $\epsilon$.\\
+\textbf{What is newly added.} Preference-corrected scalar oracle runs at $\epsilon\in\{1,5\}$ with $\alpha=0.3$, plus comparable plots using un-inflated env reward.\\
+\textbf{Current limitation.} Oracle evidence is one seed per $(\epsilon,\alpha)$ configuration; multi-seed variance is not yet characterized.
 
 \section{Conclusion}
-This project demonstrates a reproducible reward-misspecification benchmark in DreamerV3, evaluates architecture-level mitigation (static/dynamic MO), and adds a scalar oracle baseline for final comparison. Results support a practical conclusion: mitigation strategies substantially improve robustness, but high-magnitude misspecification remains an open challenge and motivates additional seed-level and ablation-level validation.
+This project demonstrates a reproducible reward-misspecification benchmark in DreamerV3, evaluates architecture-level mitigation (static/dynamic MO), and adds scalar oracle baselines at moderate and strong perturbation for final comparison. Results support a practical conclusion: mitigation strategies substantially improve robustness, but high-magnitude misspecification remains an open challenge and motivates additional seed-level and ablation-level validation.
 
 \begin{thebibliography}{9}
 \bibitem{hafner2023dreamerv3} D. Hafner et al. Mastering diverse domains through world models (DreamerV3). \textit{arXiv:2301.04104}, 2023.
