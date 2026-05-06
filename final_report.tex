@@ -28,7 +28,7 @@ in DreamerV3 and Multi-Objective / Preference-Shaped Mitigations}\\[0.35em]
 
 %------------------------------------------------------------
 \begin{abstract}
-Model-based agents such as DreamerV3~\cite{hafner2023dreamerv3} optimize policies on imagined rollouts, so biases in predicted returns can distort learning. On Crafter~\cite{hafner2021crafter}, we inject a \emph{controlled} wood-collection bonus \(\epsilon\in\{0,1,3,5\}\) into the scalar training signal used by RSSM gradients, producing proxy skew and---at high \(\epsilon\)---patterns consistent with exploitation of imperfect proxy returns. Our core technical contribution remains \textbf{MO-Dreamer}: a vectorized reward decomposition with Cobb--Douglas actor scalarization, plus a \textbf{dynamic health-reweighting} variant. We extend the original plan with a \textbf{scalar oracle baseline} that adds an achievement-based preference term (\(\alpha{=}0.3\)) without changing network structure~\cite{christiano2017rlhf}. To avoid comparing incompatible training scores across families, we report \emph{native} Crafter telemetry (summed environment reward, health) in stratified plots, and quantify an \emph{operational proxy--true gap} \(\Delta\) between logged episode scores and native reward aggregates. Across completed single-seed runs (\(\approx\)1M steps where indicated), mitigation is strongest for dynamic MO at high \(\epsilon\); oracle shaping preserves competitive native traces at \(\epsilon{=}1\) but induces large \(\Delta\) (expected, because \(\tilde r\) includes components absent from native reward sums).
+Model-based agents such as DreamerV3~\cite{hafner2023dreamerv3} optimize policies on imagined rollouts, so biases in predicted returns can distort learning. On Crafter~\cite{hafner2021crafter}, we inject a \emph{controlled} wood-collection bonus \(\epsilon\in\{0,1,3,5\}\) into the scalar training signal used by RSSM gradients, producing proxy skew and---at high \(\epsilon\)---patterns consistent with exploitation of imperfect proxy returns. Our core technical contribution remains \textbf{MO-Dreamer}: a vectorized reward decomposition with Cobb--Douglas actor scalarization, plus a \textbf{dynamic health-reweighting} variant. We add a deliberate \textbf{architecture-agnostic ablation}: scalar training with \textbf{achievement-augmented returns} \(\tilde r_t\) (bonus on verifiable Crafter achievement progress, \(\alpha{=}0.3\)), leaving the RSSM unchanged---an RLHF-motivated style of shaping without claiming privileged information~\cite{christiano2017rlhf}. To avoid comparing incompatible training scores across families, we report \emph{native} Crafter telemetry (summed environment reward, health) in stratified plots, and quantify an \emph{operational proxy--native gap} \(\Delta\) between logged episode scores and native reward aggregates. Across completed single-seed runs (\(\approx\)1M steps where indicated), mitigation is strongest for dynamic MO at high \(\epsilon\); achievement augmentation preserves competitive native traces at \(\epsilon{=}1\) but inflates \(\Delta\) (expected: \(\tilde r\) injects terms that native episode sums omit).
 \end{abstract}
 
 %------------------------------------------------------------
@@ -36,22 +36,22 @@ Model-based agents such as DreamerV3~\cite{hafner2023dreamerv3} optimize policie
 \subsection{Problem}
 Reward misspecification and proxy overoptimization~\cite{gao2022scaling} are recurring themes when learned agents optimize surrogates rather than latent intent. In Dreamer-class agents~\cite{hafner2023dreamerv3}, policy gradients flow through imagined trajectories conditioned on a predicted reward channel. If training rewards inflate particular behaviors (\emph{e.g.,} crafting loops), gradients can amplify policies that excel under the surrogate while deviating along dimensions that Crafter natives care about (health, breadth of achievement progression).
 
-\textbf{Intellectual contributions.} (i)~A reproducible Crafter \(\times\) DreamerV3 testbed for wood-targeted misspecification. (ii)~MO-Dreamer with Cobb--Douglas scalarization and a dynamic \(\omega_{\mathrm{hp}}\) variant (Phase~3A/3B). (iii)~A lightweight scalar \emph{preference oracle} baseline (Phase~3C). (iv)~A measurement protocol separating \emph{native} aggregates from trainer episode scores plus a documented \(\Delta\) diagnostic.
+\textbf{Intellectual contributions.} (i)~A reproducible Crafter \(\times\) DreamerV3 testbed for wood-targeted misspecification. (ii)~MO-Dreamer with Cobb--Douglas scalarization and a dynamic \(\omega_{\mathrm{hp}}\) variant (Phase~3A/3B). (iii)~Phase~3C: scalar \emph{achievement-augmented} reward shaping (\(\alpha{=}0.3\)), same nets as Phase~1, as a deliberate control against ``only MO helps.'' (iv)~A measurement protocol separating \emph{native} aggregates from trainer episode scores plus a documented \(\Delta\) diagnostic.
 
 \textbf{Hypotheses (tested as in the project proposal, with final epistemic status).}
 \begin{enumerate}[label=\textbf{H\arabic*:}, leftmargin=1.4em, itemsep=1pt]
   \item \textit{H1 (misspecification signature).} Increasing \(\epsilon\) shifts native health and/or score dynamics relative to clean training; high-\(\epsilon\) scalar runs show early proxy gains and late-stage degradation or instability.
   \item \textit{H2 (mitigation vs.\ scalar).} MO variants reduce proxy--true pressure or improve native outcome traces relative to scalar Dreamer at matched \(\epsilon\), with performance degrading at large \(\epsilon\) for static weights.
-  \item \textit{H3 (architecture vs.\ scalar shaping).} Oracle shaping provides an architecture-agnostic intervention; its effect should be evaluated on \emph{native} panels and not solely on \(\Delta\), because \(\tilde r\) embeds terms outside native Crafter sums.
+  \item \textit{H3 (architecture vs.\ reward engineering).} Achievement-augmented scalar returns provide an architecture-agnostic alternative to MO; effects must be read on \emph{native} reward/health, not \(\Delta\) alone, because \(\tilde r\) embeds shaping outside native episodic aggregates.
 \end{enumerate}
 
-\textbf{How we test them.} Systematic sweeps over \(\epsilon\) within each architecture family, plus oracle \((\epsilon,\alpha)\) pairs, with logging into JSONL; figures stratify families; Table~\ref{tab:gap} summarizes tail \(\Delta\).
+\textbf{How we test them.} Systematic sweeps over \(\epsilon\) within each architecture family, plus Phase~3C \((\epsilon,\alpha)\) pairs (\(\alpha{=}0.3\) fixed), with logging into JSONL; figures stratify families; Table~\ref{tab:gap} summarizes tail \(\Delta\).
 
 %------------------------------------------------------------
 \section{Related Work}
 \paragraph{World models and Dreamer.} DreamerV3 learns an RSSM and trains actor--critic objectives on imagined futures~\cite{hafner2023dreamerv3}. Our study is not a scaling paper; we interrogate \emph{reward channel design} inside that loop.
 
-\paragraph{Reward hacking and overoptimization.} Proxy gaming under misspecified or learned reward is standard in alignment discussions~\cite{gao2022scaling}. RL from human preferences~\cite{christiano2017rlhf} motivates our oracle as a toy ``preference channel'' on scalar returns.
+\paragraph{Reward hacking and overoptimization.} Proxy gaming under misspecified or learned reward is standard in alignment discussions~\cite{gao2022scaling}. Preference-style training~\cite{christiano2017rlhf} motivates an explicit auxiliary term on scalar returns; we instantiate a minimal, \emph{verifiable} analogue (achievement progress from env state), not learned human preference---to isolate ``additive shaping vs.\ architectural MO'' cleanly.
 
 \paragraph{Multi-objective RL.} Product-form or non-linear scalarizations can restrict pure trade-off corners relative to linear weights; we instantiate this idea via Cobb--Douglas advantages on vector value predictions.
 
@@ -91,15 +91,15 @@ Static MO uses \(\omega_i=1/3\). Dynamic MO increases \(\omega_{\mathrm{hp}}\) w
 \end{equation}
 with renormalization.
 
-\subsection{Phase 3C: Oracle scalar shaping}
-Architecture unchanged; scalar return becomes
+\subsection{Phase 3C: Achievement-augmented scalar baseline}
+RSSM unchanged from Phase~1; only the scalar training signal differs:
 \begin{equation}
 \tilde{r}_t = r^{\epsilon}_t+\alpha\cdot \Delta\mathrm{ach}_t ,\quad \alpha=0.3,
 \end{equation}
-with runs at \(\epsilon\in\{1,5\}\).
+where \(\Delta\mathrm{ach}_t\) counts new Crafter achievements this step---observable like native reward, hence a shaping control rather than ``oracle'' feedback. Runs at \(\epsilon\in\{1,5\}\).
 
 \subsection{Implementation.}
-Modifications span \texttt{embodied/envs/crafter.py} (bonus, vectorization, oracle), \texttt{dreamerv3/agent.py} (scalar vs.\ vector \(\lambda\)-returns / bootstrapping), and Colab launchers. Figures generated by \texttt{plot\_final\_figures.py}.
+Modifications span \texttt{embodied/envs/crafter.py} (wood bonus, vectorization, optional achievement augmentation wired as \texttt{oracle\_alpha} for historical reproducibility), \texttt{dreamerv3/agent.py} (scalar vs.\ vector \(\lambda\)-returns / bootstrapping), and Colab launchers. Figures generated by \texttt{plot\_final\_figures.py}.
 
 %------------------------------------------------------------
 \section{Experimental setup}
@@ -112,41 +112,41 @@ Phase & Architecture & Perturbations \\
 1 & Scalar Dreamer & \(\epsilon\in\{0,1,3,5\}\) \\
 3A & Static MO & \(\epsilon\in\{0,1,3,5\}\) \\
 3B & Dynamic MO & \(\epsilon\in\{0,3,5\}\) \\
-3C & Oracle scalar (\(\alpha{=}0.3\)) & \(\epsilon\in\{1,5\}\) \\
+3C & Achievement-aug.\ scalar (\(\alpha{=}0.3\)) & \(\epsilon\in\{1,5\}\) \\
 \bottomrule
 \end{tabular}
 \end{center}
 
 \textbf{Compute \& seeds.} One seed per listed configuration (\(\approx 10^6\) environment steps whenever training completed fully). Dynamic \(\epsilon{=}5\) trace ends \(\approx\)884k steps in archived logs---tail statistics consume available suffix.
 
-\textbf{Plots.} Smoothed rolling means (oracle strip \(W_{\mathrm{ep}}{=}220\); \(\Delta\) uses \(W_{\mathrm{gap}}{=}320\)).
+\textbf{Plots.} Smoothed rolling means (Phase~3C panel \(W_{\mathrm{ep}}{=}220\); \(\Delta\) uses \(W_{\mathrm{gap}}{=}320\)).
 
-\textbf{Artifacts.} JSONL curves under \texttt{results/}; submission figures are \textbf{exactly three} wide panels (Figure~\ref{fig:oracle_all}--\ref{fig:gap_cat}) to preserve legibility inside the page budget.
+\textbf{Artifacts.} JSONL curves under \texttt{results/}; submission figures are \textbf{exactly three} wide panels (Figure~\ref{fig:aas_strip}--\ref{fig:gap_cat}) to preserve legibility inside the page budget.
 
 \begin{figure*}[t]
   \centering
-  \includegraphics[width=\linewidth]{fig_oracles_combined.png}
-  \caption{\textbf{Oracle interventions only.} Scalar oracle runs share axes: trainer episodic proxy vs.\ native health.}
-  \label{fig:oracle_all}
+  \includegraphics[width=\linewidth]{fig_phase3c_aas_combined.png}
+  \caption{\textbf{Phase~3C only.} Achievement-augmented scalar runs (\(\alpha{=}0.3\)): trainer episodic logged score vs.\ native health.}
+  \label{fig:aas_strip}
 \end{figure*}
 
 \begin{figure*}[t]
   \centering
   \includegraphics[width=\linewidth]{fig_outcomes_by_category.png}
-  \caption{\textbf{Native outcomes stratified by family.} Rows: Phase~1 scalar, static MO, dynamic MO, oracle. Columns: summed native Crafter reward vs.\ health. Enables parallel reading without collapsing incompatible traces.}
+  \caption{\textbf{Native outcomes stratified by family.} Rows: Phase~1 scalar, static MO, dynamic MO, Phase~3C achievement-augmented scalar. Columns: summed native Crafter reward vs.\ health. Enables parallel reading without collapsing incompatible traces.}
   \label{fig:outcomes_cat}
 \end{figure*}
 
 \begin{figure*}[t]
   \centering
   \includegraphics[width=\linewidth]{fig_gap_by_category.png}
-  \caption{\textbf{Proxy--true gap \(\Delta\)} curves by family with zero baseline. Interpret oracles jointly with Remark~\ref{rem:oracle_delta}.}
+  \caption{\textbf{Proxy--native gap \(\Delta\)} curves by family with zero baseline. Interpret Phase~3C jointly with Remark~\ref{rem:aas_delta}.}
   \label{fig:gap_cat}
 \end{figure*}
 
-\begin{remark}[Oracle \(\Delta\) inflation]
-\label{rem:oracle_delta}
-Because \(\tilde r\) contains achievement shaping absent from Crafter-native sums, large oracle \(\Delta\) is mechanically expected---it signals \emph{surrogate augmentation}, not necessarily worse native outcomes.
+\begin{remark}[Achievement augmentation vs.\ \(\Delta\)]
+\label{rem:aas_delta}
+Because \(\tilde r\) adds achievement increments that Crafter-native episode sums do not include, large Phase~3C \(\Delta\) is \emph{mechanically likely}---it signals surrogate mismatch with the aggregate we plot, not implicit ``bad'' behavior unless native panels degrade.
 \end{remark}
 
 \subsection{Tail statistics of \(\Delta\)}
@@ -170,8 +170,8 @@ Table~\ref{tab:gap} summarizes mean and standard deviation of smoothed \(\Delta\
     Dynamic MO & \(\epsilon{=}0\) & \(-0.01\) & \(0.06\) \\
     Dynamic MO & \(\epsilon{=}3\) & \(10.51\) & \(0.93\) \\
     Dynamic MO & \(\epsilon{=}5\) & \(15.69\) & \(0.86\) \\\midrule
-    Oracle \(\alpha{=}0.3\) & \(\epsilon{=}1\) & \(42.19\) & \(1.25\) \\
-    Oracle \(\alpha{=}0.3\) & \(\epsilon{=}5\) & \(48.52\) & \(0.20\) \\\bottomrule
+    Ach.-aug.\ scalar \(\alpha{=}0.3\) & \(\epsilon{=}1\) & \(42.19\) & \(1.25\) \\
+    Ach.-aug.\ scalar \(\alpha{=}0.3\) & \(\epsilon{=}5\) & \(48.52\) & \(0.20\) \\\bottomrule
   \end{tabular}
 \end{table*}
 
@@ -181,7 +181,7 @@ Table~\ref{tab:gap} summarizes mean and standard deviation of smoothed \(\Delta\
 
 \textbf{Static vs.\ dynamic MO.} Cobb--Douglas static weights give partial robustness (\(\epsilon{=}1,3\) in check-in curves). Dynamic homeostasis delays deterioration at \(\epsilon{=}5\) in long-horizon health traces (check-in qualitative claim). Gap table: Dynamic \(\epsilon{=}5\) mean \(\Delta{=}15.69\) sits below Scalar \(19.28\) (\(\approx 18{,}\%\) relative reduction)--evidence bearing on H2, though we did \emph{not} enforce the project's informal ``\(20{\%}\)'' threshold uniformly across metrics.
 
-\textbf{Oracle.} \(\epsilon{=}1\) oracle tracks favorable native telemetry (Fig.~\ref{fig:outcomes_cat}, row~4 left/right) comparable to strong baselines, supporting H3 partly: shaping can substitute for architectural change at moderate perturbation. \(\epsilon{=}5\) remains challenging; \(\Delta\) is large by construction (Remark~\ref{rem:oracle_delta}).
+\textbf{Phase~3C (achievement-augmented scalar).} At \(\epsilon{=}1\), native reward and health traces (Fig.~\ref{fig:outcomes_cat}, row~4) remain competitive with strong baselines, supporting H3 in part: explicit shaping can help without changing network structure at moderate hack strength. At \(\epsilon{=}5\), outcomes remain difficult; \(\Delta\) is large by construction (Remark~\ref{rem:aas_delta}).
 
 \subsection{Emergent patterns (cf.\ midpoint check-in)}
 \paragraph{Self-undermining proxies.} Aggressive wood chasing can shorten effective horizon, so late episodic scores under \(\epsilon{=}5\) need not dominate the clean baseline even while the surrogate remains inflated---a cautionary instance of local proxy improvement without global return lift.
@@ -192,23 +192,23 @@ Table~\ref{tab:gap} summarizes mean and standard deviation of smoothed \(\Delta\
 \paragraph{Hypothesis audit.}
 \textit{H1:} broadly supported qualitatively (native divergence under hack). \(\Delta\) rises with \(\epsilon\) in Phase~1 tails but non-monotonicity appears at \(\epsilon{=}5\) vs.\ \(\epsilon{=}3\) owing to collapsing episode morphology---we report numbers rather than assert strict monotonicity.
 \textit{H2:} partially supported via MO gap reductions (\(\epsilon{=}5\) dynamic vs scalar) plus native-health narratives from check-ins.
-\textit{H3:} updated---oracle existed at submission; judgments must pair native curves with surrogate gap semantics.
+\textit{H3:} supported with the caveat that Phase~3C must be read through native panels; \(\Delta\) alone over-penalizes any run whose logged score encodes shaping absent from native sums.
 
 \paragraph{Difficulties (per syllabus).}
-Engineering brittle shape bugs when toggling oracle scalars (\texttt{replay} bootstrap ranks), reconciling disparate JSONL densities, constrained Colab turnaround, incomplete multi-seeding.
+Engineering brittle shape bugs when toggling scalar vs.\ vector reward ranks (\texttt{replay} bootstrap tensor layout), reconciling disparate JSONL densities, constrained Colab turnaround, incomplete multi-seeding.
 
 \paragraph{Lessons.}
 (i)~Always surface \emph{native} reward before cross-architecture leaderboard comparisons. (ii)~Product utilities buy time but exhibit magnitude cliffs. (iii)~Operational \(\Delta\) is valuable if narrated narrowly.
 
 \paragraph{Future work.}
-Multi-seeds; ensemble-based pessimistic imagination; shortened Dreamer horizons as a causal lever; full preference-data oracle versus achievement proxy.
+Multi-seeds; ensemble-based pessimistic imagination; shortened Dreamer horizons as a causal lever; learned preference models from human feedback vs.\ hand-specified achievement shaping.
 
 \section{Conclusion}
-We positioned imagination-side reward hacking in DreamerV3 as an alignment-relevant surrogate-control problem on Crafter, implemented MO mitigation lines and oracle shaping, and delivered a reproducible telemetry + \(\Delta\) analysis layer. Positive results are nuanced: mitigations alter native and surrogate traces in structured ways rather than guaranteeing monotonic superiority.
+We positioned imagination-side reward hacking in DreamerV3 as an alignment-relevant surrogate-control problem on Crafter, implemented MO mitigation lines and an achievement-augmented scalar control, and delivered a reproducible telemetry + \(\Delta\) analysis layer. Positive results are nuanced: mitigations alter native and surrogate traces in structured ways rather than guaranteeing monotonic superiority.
 
 \section*{Author Contributions}
 \paragraph{Akash Pramod Yalla.}
-Repository integration, Crafter wrappers (\(\epsilon\) hack, oracle path), JAX/MO shape fixes, plotting pipeline (\texttt{plot\_final\_figures.py}), Colab reproducibility \& logging artifacts, drafting final integration sections.
+Repository integration, Crafter wrappers (\(\epsilon\) hack, achievement-augmentation flag in code), JAX/MO shape fixes, plotting pipeline (\texttt{plot\_final\_figures.py}), Colab reproducibility \& logging artifacts, drafting final integration sections.
 
 \paragraph{Pranav Jeyakumar.}
 Training orchestration \& experiment staging, comparative runs (Phase~1/Phase~3 splits), empirical monitoring, methodological write-up \& hypothesis tracking.
@@ -228,7 +228,7 @@ Baseline replication checks, qualitative outcome analysis \& figure interpretati
 \begin{itemize}[leftmargin=1.2em, itemsep=2pt]
   \item \textbf{Is \(\Delta\) ``imagination error''?} No---it is surrogate vs.\ native logging divergence at episodic resolution.
   \item \textbf{Why three wide figures?} Course page budget + legibility; stratification beats single crowded plots.
-  \item \textbf{Oracle looks bad in \(\Delta\)?} Expected (Remark~\ref{rem:oracle_delta}); read native reward/health row.
+  \item \textbf{Phase~3C looks bad in \(\Delta\)?} Often misleading (Remark~\ref{rem:aas_delta}); read native reward/health row.
 \end{itemize}
 
 \end{document}

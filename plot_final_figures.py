@@ -1,8 +1,8 @@
 """
 Final report figures only (compact, categorized):
-  1) All oracle scalar runs together (episode score used for logging + health)
-  2) Outcomes by experiment family: unp-native Crafter reward sum + health (2 x 4 grid)
-  3) Proxy-true gap by family: smoothed Δ = logged episode/score minus env reward sum
+  1) Phase 3C strip: achievement-augmented scalar runs only (logged score + health)
+  2) Outcomes by experiment family: native Crafter reward sum + health (4-row grid)
+  3) Proxy–true gap by family: smoothed Δ = logged episode/score minus native reward sum
 
 Run from repo root:  python plot_final_figures.py
 """
@@ -25,8 +25,8 @@ W_GAP = 320  # gap smoothing slightly wider (noisier)
 # --- Data definitions ---------------------------------------------------------
 
 EXTRA_SCORE_FILES: dict[str, list[str]] = {
-    # Oracle epsilon=5 scores extended from Colab stdout tail merges
-    "Oracle α=0.3, ε=5": ["scores_oracle0.3_epsilon5_tail_from_logs.jsonl"],
+    # Phase 3C ε=5: supplementary score points merged from Colab logs
+    "AAS α=0.3, ε=5": ["scores_oracle0.3_epsilon5_tail_from_logs.jsonl"],
 }
 
 
@@ -108,8 +108,8 @@ def trace_for_key(key: str) -> tuple[str, list[str], str]:
         "Dyn ε=0": (["scores_dynamic_baseline.jsonl"], "metrics_dynamic_baseline.jsonl"),
         "Dyn ε=3": (["scores_dynamic_epsilon3.jsonl"], "metrics_dynamic_epsilon3.jsonl"),
         "Dyn ε=5": (["scores_dynamic_epsilon5.jsonl"], "metrics_dynamic_epsilon5.jsonl"),
-        "Oracle α=0.3, ε=1": (["scores_oracle0.3_epsilon1.jsonl"], "metrics_oracle0.3_epsilon1.jsonl"),
-        "Oracle α=0.3, ε=5": (["scores_oracle0.3_epsilon5.jsonl"], "metrics_oracle0.3_epsilon5.jsonl"),
+        "AAS α=0.3, ε=1": (["scores_oracle0.3_epsilon1.jsonl"], "metrics_oracle0.3_epsilon1.jsonl"),
+        "AAS α=0.3, ε=5": (["scores_oracle0.3_epsilon5.jsonl"], "metrics_oracle0.3_epsilon5.jsonl"),
     }
     score_list, mf = CORE[key]
     score_paths = score_list + tails
@@ -124,7 +124,7 @@ CATEGORIES: list[tuple[str, list[str]]] = [
     ("Phase 1 — scalar DreamerV3", ["P1 ε=0", "P1 ε=1", "P1 ε=3", "P1 ε=5"]),
     ("Phase 3A — static MO", ["Static ε=0", "Static ε=1", "Static ε=3", "Static ε=5"]),
     ("Phase 3B — dynamic MO", ["Dyn ε=0", "Dyn ε=3", "Dyn ε=5"]),
-    ("Phase 3C — oracle scalar (α = 0.3)", ["Oracle α=0.3, ε=1", "Oracle α=0.3, ε=5"]),
+    ("Phase 3C — achievement-augmented scalar (α = 0.3)", ["AAS α=0.3, ε=1", "AAS α=0.3, ε=5"]),
 ]
 
 COLORS_EPS = {
@@ -139,19 +139,20 @@ COLORS_EPS = {
     "Dyn ε=0": "#444444",
     "Dyn ε=3": "#3A86FF",
     "Dyn ε=5": "#D62839",
-    "Oracle α=0.3, ε=1": "#6A994E",
-    "Oracle α=0.3, ε=5": "#8338EC",
+    "AAS α=0.3, ε=1": "#6A994E",
+    "AAS α=0.3, ε=5": "#8338EC",
 }
 
 
-def plot_oracles_combined(outname: str = "fig_oracles_combined.png"):
-    keys = ["Oracle α=0.3, ε=1", "Oracle α=0.3, ε=5"]
+def plot_phase3c_aas_strip(outname: str = "fig_phase3c_aas_combined.png"):
+    """Phase 3C only: achievement-augmented scalar baseline (same Dreamer nets as Phase 1)."""
+    keys = ["AAS α=0.3, ε=1", "AAS α=0.3, ε=5"]
     fig, axes = plt.subplots(1, 2, figsize=(11, 4.2), constrained_layout=True)
     for k in keys:
         label, sfiles, mf = trace_for_key(k)
         df = load_trace(label, sfiles, mf)
         if df.empty:
-            print("  missing oracle:", k)
+            print("  missing Phase 3C trace:", k)
             continue
         c = COLORS_EPS[k]
         if "episode/score" in df.columns:
@@ -162,12 +163,12 @@ def plot_oracles_combined(outname: str = "fig_oracles_combined.png"):
             h = df.set_index("step")["epstats/log/health_level/avg"].astype(float).sort_index()
             axes[1].plot(smooth_series(h, W_EP).index.to_numpy(), smooth_series(h, W_EP).to_numpy(),
                         color=c, label=k, lw=2.0)
-    axes[0].set_title("Oracle runs — logged episode score")
+    axes[0].set_title("Phase 3C — achievement-augmented scalar: logged episode score")
     axes[0].set_xlabel("environment steps")
     axes[0].set_ylabel("episode / score")
     axes[0].legend(fontsize=8)
     axes[0].grid(True, alpha=0.3)
-    axes[1].set_title("Oracle runs — avg health")
+    axes[1].set_title("Phase 3C — achievement-augmented scalar: avg health")
     axes[1].set_xlabel("environment steps")
     axes[1].set_ylabel("avg health")
     axes[1].set_ylim(6.4, 9.45)
@@ -284,7 +285,7 @@ def write_gap_tail_tsv(
 def main():
     os.chdir(ROOT)
     print("Writing final-report figures ->", OUTDIR)
-    plot_oracles_combined()
+    plot_phase3c_aas_strip()
     plot_outcomes_by_category()
     plot_gap_by_category()
     write_gap_tail_tsv()

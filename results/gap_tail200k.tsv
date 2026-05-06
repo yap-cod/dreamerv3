@@ -10,5 +10,5 @@ Phase 3A — static MO	Static ε=5	19.281	1.945	1099896
 Phase 3B — dynamic MO	Dyn ε=0	-0.006	0.055	1099836
 Phase 3B — dynamic MO	Dyn ε=3	10.509	0.928	1099991
 Phase 3B — dynamic MO	Dyn ε=5	15.686	0.859	883910
-Phase 3C — oracle scalar (α = 0.3)	Oracle α=0.3, ε=1	42.185	1.252	1099805
-Phase 3C — oracle scalar (α = 0.3)	Oracle α=0.3, ε=5	48.521	0.204	1100000
+Phase 3C — achievement-augmented scalar (α = 0.3)	AAS α=0.3, ε=1	42.185	1.252	1099805
+Phase 3C — achievement-augmented scalar (α = 0.3)	AAS α=0.3, ε=5	48.521	0.204	1100000
