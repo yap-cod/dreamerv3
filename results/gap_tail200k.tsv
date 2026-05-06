@@ -1,0 +1,14 @@
+category	curve	mean_gap	std_gap	max_step
+Phase 1 — scalar DreamerV3	P1 ε=0	0.004	0.048	1099993
+Phase 1 — scalar DreamerV3	P1 ε=1	6.676	0.769	1099827
+Phase 1 — scalar DreamerV3	P1 ε=3	27.645	2.21	1099901
+Phase 1 — scalar DreamerV3	P1 ε=5	19.281	1.945	1099896
+Phase 3A — static MO	Static ε=0	-0.003	0.043	1099773
+Phase 3A — static MO	Static ε=1	2.368	0.301	1038370
+Phase 3A — static MO	Static ε=3	11.529	0.502	1099840
+Phase 3A — static MO	Static ε=5	19.281	1.945	1099896
+Phase 3B — dynamic MO	Dyn ε=0	-0.006	0.055	1099836
+Phase 3B — dynamic MO	Dyn ε=3	10.509	0.928	1099991
+Phase 3B — dynamic MO	Dyn ε=5	15.686	0.859	883910
+Phase 3C — oracle scalar (α = 0.3)	Oracle α=0.3, ε=1	42.185	1.252	1099805
+Phase 3C — oracle scalar (α = 0.3)	Oracle α=0.3, ε=5	48.521	0.204	1100000

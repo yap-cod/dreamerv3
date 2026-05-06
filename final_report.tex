@@ -14,8 +14,8 @@
 \titlespacing*{\section}{0pt}{6pt}{3pt}
 \titlespacing*{\subsection}{0pt}{4pt}{2pt}
 
-\title{\textbf{Imagination Reward Hacking in DreamerV3:\\
-Controlled Misspecification, Multi-Objective Mitigation, and an Oracle Baseline}\\[0.4em]
+\title{\textbf{Exploratory Study: Proxy--True Divergence under\\
+Controlled Reward Misspecification in DreamerV3 (Crafter)}\\[0.35em]
 \large CS 690S: AI Alignment --- Final Report}
 \author{Akash Pramod Yalla \quad Pranav Jeyakumar \quad Sanjiv Kumaran Mohanraj}
 \date{\today}
@@ -24,112 +24,119 @@ Controlled Misspecification, Multi-Objective Mitigation, and an Oracle Baseline}
 \maketitle
 
 \begin{abstract}
-We study controlled reward misspecification in DreamerV3 on Crafter by injecting a wood-targeted perturbation $\epsilon \in \{0,1,3,5\}$ into the reward stream used for policy learning through imagined trajectories. We compare three mitigation families: (i) scalar DreamerV3, (ii) Static and Dynamic Multi-Objective (MO) Dreamer variants, and (iii) a scalar preference-corrected baseline using an oracle-weighted achievement increment ($\texttt{oracle\_alpha}=0.3$) at both moderate ($\epsilon=1$) and strong ($\epsilon=5$) perturbations. We report both hacked training scores and \textit{un-inflated} environment reward from Crafter logs for fair comparison across methods. Scalar agents show proxy-focused drift at higher $\epsilon$; static and dynamic MO mitigate partially with a clear magnitude threshold; oracle shaping improves scalar training without architectural changes. Strong $\epsilon$ remains the hardest regime.
+We present an \emph{exploratory, systems-style} study on DreamerV3~\cite{hafner2023dreamerv3} with Crafter~\cite{hafner2021crafter}: a controlled wood-linked reward bonus $\epsilon\in\{0,1,3,5\}$ induces a \emph{training-time proxy} that need not match native environment return. We organize results by \textbf{experiment family}---scalar Phase~1 baselines, static multi-objective (MO), dynamic MO, and scalar oracle shaping---rather than collapsing everything into one plot. Native Crafter aggregates are shown separately so cross-method comparisons are not confounded by different scalar training signals. We quantify a reproducible scalar \emph{proxy--true gap}
+$\Delta$ between logged episode return and native reward sums, and report tail statistics (final 200k steps; single seed per configuration). We position this as \textbf{valid exploration research}: it isolates failure modes and mitigation tradeoffs in a modern model-based RL stack and states explicit limitations (single seed, operational $\Delta$, partial runs where noted).
 \end{abstract}
 
-\section{Problem Setup}
-DreamerV3 trains actor-critic updates on imagined trajectories from a learned world model~\cite{hafner2023dreamerv3}. This is efficient but sensitive to reward design. We inject a controlled perturbation:
+\section{Motivation and research stance}
+Model-based agents optimize long imagined rollouts against learned reward heads. When the training reward is misspecified or augmented, two questions arise: (i) do outcomes on \emph{native} environment telemetry remain sensible, and (ii) how large is the divergence between the \emph{proxy} objective (logging / training) and the \emph{native} return aggregate we care about for alignment?
+
+This report answers these questions \emph{empirically and comparatively}, without claiming to isolate imagination error exclusively from generic dense-reward pathology.
+
+\section{Interventions}
+\subsection{Wood-linked perturbation}
 \begin{equation}
-\hat{r}_t^\epsilon = \hat{r}_t + \epsilon\cdot\mathbf{1}[(s_t, a_t)\in\mathcal{S}_\text{hack}]
+\hat{r}_t^\epsilon=\hat{r}_t+\epsilon\cdot \mathbf{1}[\text{wood inventory increases}]
 \end{equation}
-where $\mathcal{S}_\text{hack}$ corresponds to wood-collection transitions in Crafter.
-
-\section{Methods}
-\subsection{Phase 1: Scalar Baseline}
-Standard DreamerV3 with scalar reward under $\epsilon \in \{0,1,3,5\}$.
-
-\subsection{Phase 3A/3B: MO-Dreamer}
-We decompose reward into a vector:
-\[
-\vec{R} = [R_\text{hack}, R_\text{hp}, R_\text{ach}] \in \mathbb{R}^3
-\]
-and optimize actor utility with Cobb-Douglas scalarization:
+\subsection{Architectural mitigations (MO)}
+Vector reward $\vec{R}=[R_{\mathrm{hack}},\Delta hp,\Delta \mathrm{ach}]$ with Cobb--Douglas actor scalarization (static weights; dynamic health weighting in Phase~3B).
+\subsection{Oracle scalar shaping}
+Preference-shaped scalar return
 \begin{equation}
-\mathcal{L}_\text{actor} = -\mathbb{E}\left[\prod_{i=1}^{3}\left(\mathrm{symexp}(\hat{V}_{\xi,i})\right)^{\omega_i}\right].
+\tilde{r}_t=r_t^\epsilon+\alpha\cdot \Delta \mathrm{achievement}_t,\quad \alpha=0.3,
 \end{equation}
-Static MO uses fixed $\omega_i=\frac{1}{3}$. Dynamic MO increases health weight when current health decreases.
+at $\epsilon\in\{1,5\}$.
 
-\subsection{Phase 3C: Oracle Scalar Baseline}
-To avoid architecture changes, we add a preference-correction term in scalar mode:
+\section{Operational metrics}
+\subsection{Comparable native outcome}
+Native Crafter telemetry uses \texttt{epstats/log/reward/sum} (episode aggregate of the game's own reward channel, prior to vector MO packaging). Native health uses \texttt{epstats/log/health\_level/avg}.
+
+\subsection{Proxy--true gap (quantization)}
+Define the \emph{operational gap} at logging time as
 \begin{equation}
-\tilde{r}_t = r_t^\epsilon + \alpha \cdot \Delta\text{achievement}_t
+\Delta_t = \texttt{episode/score}_t-\texttt{reward\_sum}^{\mathrm{native}}_t
 \end{equation}
-with $\alpha=0.3$. We completed runs at $\epsilon\in\{1,5\}$ and compare against Phase~1 scalar and (for $\epsilon=1$) Static MO at the same perturbation level.
+where \texttt{episode/score} is the trainer's episodic scalar (includes wood bonus for $\epsilon{>}0$, and includes oracle shaping terms for oracle runs), while \texttt{reward\_sum}$^{\mathrm{native}}$ is the native aggregate from Crafter logs. Sparse trainer rows are merged with outer joins and mild forward-fill so curves exist on a common step axis (standard practice for episodic aggregates reported asynchronously).
 
-\section{Results}
-\subsection{Scalar Misspecification Signature}
-\begin{figure}[H]
+\textbf{Caveats we will defend verbally:} (i)~$\Delta$ is not ``Bellman error''; it is a proxy alignment diagnostic. (ii)~Oracle runs intentionally inflate $\Delta$ because $\tilde{r}$ adds components not present in native sums---large oracle $\Delta$ is expected and must be read alongside native outcome panels.
+
+\section{Results (three figures)}
+\begin{figure*}[t]
   \centering
-  \includegraphics[width=\columnwidth]{fig_phase1.png}
-  \caption{Phase 1 scalar DreamerV3 under $\epsilon \in \{0,1,3,5\}$.}
-  \label{fig:phase1_final}
-\end{figure}
+  \includegraphics[width=\linewidth]{fig_oracles_combined.png}
+  \caption{\textbf{Oracle panel only.} Both oracle configurations ($\alpha{=}0.3$, $\epsilon{\in}\{1,5\}$) on the \emph{same} axes: trainer episode score vs.\ native health.}
+  \label{fig:oracle_all}
+\end{figure*}
 
-Phase 1 shows clear proxy-focused behavior at higher $\epsilon$ with unstable score dynamics and metric drift relative to the clean baseline.
-
-\subsection{MO Mitigation}
-\begin{figure}[H]
+\begin{figure*}[t]
   \centering
-  \includegraphics[width=\columnwidth]{fig_phase3_static.png}
-  \caption{Static MO-Dreamer across all $\epsilon$ values.}
-  \label{fig:phase3a_final}
-\end{figure}
+  \includegraphics[width=\linewidth]{fig_outcomes_by_category.png}
+  \caption{\textbf{Native outcomes by family.} Four rows split experiment classes; columns are native reward sum vs.\ health. This layout avoids unreadable overlays and makes cross-family reading parallel.}
+  \label{fig:outcomes_cat}
+\end{figure*}
 
-\begin{figure}[H]
+\begin{figure*}[t]
   \centering
-  \includegraphics[width=\columnwidth]{fig_phase3_dynamic.png}
-  \caption{Dynamic MO-Dreamer across $\epsilon \in \{0,3,5\}$.}
-  \label{fig:phase3b_final}
-\end{figure}
+  \includegraphics[width=\linewidth]{fig_gap_by_category.png}
+  \caption{\textbf{Gap panels by family.} Smoothed $\Delta_t$ traces; zero reference dotted. Interpretation differs by family: P1/static/dynamic gaps mainly reflect wood bonus (and MO packaging of the hacked channel); oracle gaps additionally reflect achievement shaping.}
+  \label{fig:gap_cat}
+\end{figure*}
 
-Static MO mitigates low/moderate misspecification but weakens at $\epsilon=5$. Dynamic MO improves robustness further and delays degradation in high-$\epsilon$ settings.
+\subsection{Tail gap numerics (single seed)}
+Mean and standard deviation of smoothed $\Delta$ over the \textbf{final 200k environment steps} (Table~\ref{tab:gap}). One run (dynamic MO, $\epsilon{=}5$) ends earlier ($\approx$884k steps); statistics are taken over its available tail.
 
-\subsection{Oracle baseline at $\epsilon=1$}
-\begin{figure}[H]
+\begin{table*}[t]
   \centering
-  \includegraphics[width=\columnwidth]{fig_oracle_epsilon1.png}
-  \caption{Oracle scalar baseline ($\epsilon=1$, $\alpha=0.3$) vs.\ clean baseline, Phase~1 scalar at $\epsilon=1$, and Static MO at $\epsilon=1$. Left: episode score (training signal includes hack where applicable). Right: average health.}
-  \label{fig:oracle_eps1}
-\end{figure}
+  \small
+  \caption{Mean $\Delta$ (smoothed) over final 200k steps where available.}
+  \label{tab:gap}
+  \begin{tabular}{@{}llrr@{}}
+    \toprule
+    Family & Configuration & mean $\Delta$ & std $\Delta$ \\
+    \midrule
+    Phase 1 scalar & clean $\epsilon{=}0$ & $0.00$ & $0.05$ \\
+    Phase 1 scalar & $\epsilon{=}1$ & $6.68$ & $0.77$ \\
+    Phase 1 scalar & $\epsilon{=}3$ & $27.64$ & $2.21$ \\
+    Phase 1 scalar & $\epsilon{=}5$ & $19.28$ & $1.95$ \\
+    \midrule
+    Phase 3A static MO & MO $\epsilon{=}0$ & $0.00$ & $0.04$ \\
+    Phase 3A static MO & MO $\epsilon{=}1$ & $2.37$ & $0.30$ \\
+    Phase 3A static MO & MO $\epsilon{=}3$ & $11.53$ & $0.50$ \\
+    Phase 3A static MO & MO $\epsilon{=}5$ & $19.28$ & $1.95$ \\
+    \midrule
+    Phase 3B dynamic MO & MO $\epsilon{=}0$ & $-0.01$ & $0.06$ \\
+    Phase 3B dynamic MO & MO $\epsilon{=}3$ & $10.51$ & $0.93$ \\
+    Phase 3B dynamic MO & MO $\epsilon{=}5$ & $15.69$ & $0.86$ \\
+    \midrule
+    Oracle scalar & $\alpha{=}0.3$, $\epsilon{=}1$ & $42.19$ & $1.25$ \\
+    Oracle scalar & $\alpha{=}0.3$, $\epsilon{=}5$ & $48.52$ & $0.20$ \\
+    \bottomrule
+  \end{tabular}
+\end{table*}
 
-\begin{figure}[H]
-  \centering
-  \includegraphics[width=\columnwidth]{fig_oracle_epsilon1_true_reward.png}
-  \caption{Same comparison using \textit{un-inflated} env reward (\texttt{log/reward/sum}) for comparable outcomes across methods.}
-  \label{fig:oracle_eps1_true}
-\end{figure}
-
-The $\epsilon=1$ oracle run spans \(\sim\)1.1M environment steps (5{,}977 episode-score samples). Near the end of training, logged aggregates include episode score \(\approx 40.6\), health average \(\approx 7.93\), and achievements-unlocked average \(\approx 53.4\). Visually, oracle shaping tracks close to strong baselines at moderate $\epsilon$, supporting preference correction as a lightweight alternative when architecture changes are undesirable.
-
-\subsection{Oracle baseline at $\epsilon=5$}
-\begin{figure}[H]
-  \centering
-  \includegraphics[width=\columnwidth]{fig_phase3_oracle.png}
-  \caption{Oracle scalar baseline ($\epsilon=5$, $\alpha=0.3$) vs Phase 1/3 $\epsilon=5$ runs.}
-  \label{fig:phase3c_final}
-\end{figure}
-
-\begin{figure}[H]
-  \centering
-  \includegraphics[width=\columnwidth]{fig_phase3_oracle_true_reward.png}
-  \caption{$\epsilon=5$ comparison using un-inflated env reward (\texttt{log/reward/sum}).}
-  \label{fig:phase3c_true}
-\end{figure}
-
-For $\epsilon=5$, oracle training curves extend through merged score logs to \(\sim 1.1\times 10^6\) steps for plotting; metric-derived health/reward panels follow the primary \texttt{metrics} JSONL coverage. Oracle remains competitive with MO variants on several slices but is still a single scalar objective---it does not enforce the same structural separation as Cobb--Douglas MO.
-
-\section{Discussion}
-\textbf{What is established.} Controlled misspecification reliably changes behavior; mitigation helps, with dynamic MO strongest among completed architecture variants at high $\epsilon$.\\
-\textbf{What is newly added.} Preference-corrected scalar oracle runs at $\epsilon\in\{1,5\}$ with $\alpha=0.3$, plus comparable plots using un-inflated env reward.\\
-\textbf{Current limitation.} Oracle evidence is one seed per $(\epsilon,\alpha)$ configuration; multi-seed variance is not yet characterized.
+\section{Discussion (what we can claim)}
+\textbf{Structured comparison.} Splitting plots by experimental family mirrors how a serious systems paper groups ablations---it is not ``more images,'' it is \emph{legibility}.\\
+\textbf{Native outcomes.} Oracle and MO runs should be judged on native reward/health panels, not on hacked score alone.\\
+\textbf{Gap panel.} $\Delta$ is an explicit scalarization of ``how much the logged return drifts from native Crafter return under our interventions.'' It is most interpretable for $\epsilon{>}0$ wood hack; oracle rows are dominated by additional shaping and should be paired with Table~\ref{tab:gap} + native panels.\\
+\textbf{Limitations.} Single seed per configuration; operational $\Delta$ definition; partial alignment of sparse logs; one dynamic run shorter.
 
 \section{Conclusion}
-This project demonstrates a reproducible reward-misspecification benchmark in DreamerV3, evaluates architecture-level mitigation (static/dynamic MO), and adds scalar oracle baselines at moderate and strong perturbation for final comparison. Results support a practical conclusion: mitigation strategies substantially improve robustness, but high-magnitude misspecification remains an open challenge and motivates additional seed-level and ablation-level validation.
+This is best read as \textbf{exploration with measurement}: we built a controlled Crafter $\times$ DreamerV3 testbed, compared scalar, MO, and oracle mitigations, and separated \emph{native} outcomes from \emph{proxy} logging through $\Delta$. The scientific product is a reproducible experimental map plus honest limits---not a single headline number.
 
 \begin{thebibliography}{9}
 \bibitem{hafner2023dreamerv3} D. Hafner et al. Mastering diverse domains through world models (DreamerV3). \textit{arXiv:2301.04104}, 2023.
 \bibitem{hafner2021crafter} D. Hafner. Benchmarking the spectrum of agent capabilities (Crafter). \textit{arXiv:2109.06780}, 2021.
 \bibitem{christiano2017rlhf} P. Christiano et al. Deep RL from human preferences. \textit{NeurIPS}, 2017.
 \end{thebibliography}
+
+\appendix
+\section*{Short Q\&A sheet (for presentation)}
+\begin{itemize}[leftmargin=1.2em, itemsep=2pt]
+  \item \textbf{Is this ``real'' reward hacking?} It is a \emph{controlled} misspecification of the training signal (wood bonus) in a real MBRL stack; we report both native outcomes and proxy gaps.
+  \item \textbf{Why is oracle $\Delta$ huge?} Oracle adds terms to the training scalar that are not in native Crafter sums; large $\Delta$ is expected and is \emph{not} the same statement as large imagination error.
+  \item \textbf{Why not one blob plot?} Different families use different internal reward packaging; native panels and family-separated gap panels keep comparisons honest and readable.
+  \item \textbf{What would you do with more time?} Multi-seed bands, full 1M completion for all runs, and (if isolating ``imagination'' specifically) a model-free control or imagination-horizon ablation.
+  \item \textbf{What is the strongest empirical takeaway?} MO reduces proxy--true pressure relative to scalar at matched $\epsilon$ in several rows; dynamic MO is best at high $\epsilon$ among completed runs; oracle is a cheap scalar intervention but changes the meaning of $\Delta$.
+\end{itemize}
 
 \end{document}
