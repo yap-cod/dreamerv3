@@ -1,3 +1,4 @@
+"""Legacy granular PNG exporter (drafts). Prefer plot_final_figures.py for submission figures."""
 import pandas as pd
 import json
 import matplotlib.pyplot as plt
